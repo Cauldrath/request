@@ -857,6 +857,16 @@ Request.prototype.onResponse = function (response) {
           return
         }
 
+        function postEncoding() {
+          if (self._json) {
+            try {
+              response.body = JSON.parse(response.body)
+            } catch (e) {}
+          }
+          debug('emitting complete', self.uri.href)
+          self.emit('complete', response, response.body)
+        }
+
         if (buffer.length && Buffer.isBuffer(buffer[0])) {
           debug('has body', self.uri.href, bodyLen)
           var body = new Buffer(bodyLen)
@@ -865,11 +875,14 @@ Request.prototype.onResponse = function (response) {
             chunk.copy(body, i, 0, chunk.length)
             i += chunk.length
           })
-          if (self.encoding === null) {
-            response.body = body
-          } else {
-            response.body = body.toString(self.encoding)
-          }
+          self.emit('encoding', body, function(body) {
+            if (self.encoding === null) {
+              response.body = body
+            } else {
+              response.body = body.toString(self.encoding)
+            }
+            postEncoding();
+          });
         } else if (buffer.length) {
           // The UTF8 BOM [0xEF,0xBB,0xBF] is converted to [0xFE,0xFF] in the JS UTC16/UCS2 representation.
           // Strip this value out when the encoding is set to 'utf8', as upstream consumers won't expect it and it breaks JSON.parse().
@@ -877,18 +890,11 @@ Request.prototype.onResponse = function (response) {
             buffer[0] = buffer[0].substring(1)
           }
           response.body = buffer.join('')
+          postEncoding();
         }
-
-        if (self._json) {
-          try {
-            response.body = JSON.parse(response.body)
-          } catch (e) {}
+        else {
+          postEncoding();
         }
-        debug('emitting complete', self.uri.href)
-        if(response.body == undefined && !self._json) {
-          response.body = "";
-        }
-        self.emit('complete', response, response.body)
       })
     }
   }
