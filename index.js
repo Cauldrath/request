@@ -865,6 +865,7 @@ Request.prototype.onResponse = function (response) {
             chunk.copy(body, i, 0, chunk.length)
             i += chunk.length
           })
+          self.emit('encoding', body);
           if (self.encoding === null) {
             response.body = body
           } else {
